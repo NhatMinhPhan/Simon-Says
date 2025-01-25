@@ -1,0 +1,898 @@
+<!-- Name: Minh Phan, Aananth Balachandra
+Date: January 17, 2022
+Teacher: Mr. Gugoiu
+Description: This program will display a canvas, in which four buttons on the
+screen are flashing. The goal of the player is to enter the correct order the
+four buttons have flashed in.
+
+Minh Phan is in charge of the gameplay and graphics, while
+Aananth Balachandra is responsible for the instructions text,
+debugging, and designing graphics for the game.-->
+<!DOCTYPE html>
+<html>
+<body>
+  
+  
+<p id="console"></p>
+
+<video id="instrVid" autoplay muted loop hidden>
+	<source src="https://drive.google.com/uc?export=view&id=1YBNJU7zOv__pFeE9wK2CYCJhNXUyD9Dk" type="video/mp4">
+  Your browser does not support the video tag, or you are not connected to the Internet. The video must play in order for the game to work properly.
+</video>
+  
+<!--The HTML element above is for the canvas to draw its frames on the instructions window. It was recorded by Minh Phan and stored in Google Drive.-->
+  
+<canvas id="canvasId" width="769" height="599" style="border: 1px solid black;display: none"></canvas>
+<script>
+
+let level = 1; //The player's current level
+let colors = ["Yellow", "Red", "Blue", "Green"]; //List of colors
+let correct = []; //The correct answer
+let answer = []; //Player's answer
+  
+let isClickable = false; //Detects if the player can click the coloured buttons
+let isLayer2 = false; //If there is the second layer (for the menus), the buttons cannot be clicked even if isClickable is true
+let currentMenu = "main"; //Current type of menu
+
+canvas = document.getElementById("canvasId");
+video = document.getElementById("instrVid");
+  
+ 
+//Finding the canvas context
+if (canvas.getContext) ctx = canvas.getContext("2d"); //Gets the rendering context
+else alert("Canvas element is not available"); //Alerts the user if the context cannot be fetched
+  
+ctx.clearRect(0, 0, canvas.width, canvas.height); //Clears the canvas
+ctx.fillStyle = "grey";
+ctx.fillRect(0, 0, canvas.width, canvas.height); //Covers the canvas with a grey background
+  
+canvas.addEventListener('mousemove', function(evt) //Checks the mouse's movement
+		{
+  		globalMousePositions = updateMousePos(canvas, evt); //Detects the 
+  		mouseOverCollision(updateMousePos(canvas, evt)); //Detects if the mouse cursor touches anything
+		});
+  
+let globalMousePositions = {mouseX: 0, mouseY: 0}; //Stores the mouse cursor's coordinates
+let getClick = false; //Stores the value representing if there is a click
+  
+canvas.addEventListener('click', function(evt){ //Detects clicking
+  getClick = true; //Set getClick to true.
+	clickCollision(updateMousePos(canvas, evt)); //Detects which coloured button gets clicked
+  mouseOverCollision(updateMousePos(canvas, evt)); //Updates the text on the button
+});
+
+video.addEventListener('play', function(){ //When the video is played
+	let vidFrame = this; //Stores the frame
+  (function getFrame() {
+    instructionsVIDFrame = vidFrame; //Stores the frame to be drawn
+    setTimeout(getFrame, 1000 / 30); // Stores the frame at 30 fps
+  })();
+});
+  
+let instructionsVIDFrame = {}; //Stores the video frame to be drawn
+  
+window.onload = function(){ // When the website is first loaded
+  canvas.style.display = "block"; //When all the HTML elements are ready for use, show the canvas.
+  video.play(); //Play the video for the canvas to draw
+  //The following draws the buttons.
+	drawButton(canvas.width / 5, canvas.height/2, "yellow");
+  drawButton(canvas.width / 5 * 2, canvas.height/2, "red"); 
+  drawButton(canvas.width / 5 * 3, canvas.height/2, "blue");
+  drawButton(canvas.width / 5 * 4, canvas.height/2, "green");
+  storeSplash = selectSplash(); //Selects a random storeSplash
+  splashTimer(); //Starts the splash screen
+  isLayer2 = true;
+  mainMenuDelay(); //Calls for the main menu to be called
+}
+
+function drawButton(x,y,buttonColor){//Draws the coloured buttons
+	ctx.lineWidth = 5; //Sets the thickness of the stroke
+	ctx.strokeStyle = "black";
+  ctx.fillStyle = buttonColor;
+  ctx.beginPath();
+	ctx.arc(x, y, 50, 0, 2 * Math.PI);
+	ctx.stroke();
+	ctx.fill(); //Draws a circle with stroke and fill.
+}
+
+let cheatsStatus = false; //Status of the cheats during gameplay, disabled by default
+let cheatsActivateID; //ID that ensures the cheats are shown
+function activateCheats(){//Activates/Deactivates cheats
+	switch (cheatsStatus){
+    case false: //If the user wants to enable the cheats
+      cheatsStatus = true;
+      break;
+    case true: //If the user wants to disable the cheats
+      cheatsStatus = false;
+      break;
+  }
+}
+  
+function showCheats(){//Shows cheats during the game
+	if (!cheatsStatus) return; //If the player does not want cheats, do not run the function
+  ctx.clearRect(0, canvas.height - 40, canvas.width/4, 50);
+  ctx.fillStyle = "grey";
+  ctx.fillRect(0, canvas.height - 40, canvas.width/4, 50);
+  ctx.font = "bold 25px Arial";
+  ctx.fillStyle = "black";
+  ctx.fillText((answer.length + 1) + ". " + correct[answer.length], 5, canvas.height - 10); //Indicates the current button which needs to be pressed
+}
+  
+function initialize(buttonName){ //Initializes and begins the game
+  
+  switch(buttonName){ //Sets the player's level according to the difficulty they pick
+    case "superEasy":
+      level = 1;
+      break;
+    case "Easy":
+      level = 3;
+      break;
+    case "Medium":
+      level = 5;
+      break;
+    case "Hard":
+      level = 15;
+      break;
+    case "superHard":
+      level = 25;
+      break;
+    case "ultraHard":
+      level = 40;
+      break;
+    case "impossible":
+      level = 50;
+      break;
+    case "godMode":
+      level = 60;
+      break;
+    case "ultimate":
+      level = 75;
+      break;
+    case "Level 150":
+      level = 150;
+      break;
+  }
+    //Begins the game
+    currentMenu = "pause"; //Sets currentMenu for the pause menu
+    drawDefault(); //Resets the coloured buttons
+    createList(); //Creates a random combination
+  	pauseButton(); //Draws a pause button
+}
+  
+function drawDefault(stat){ //When called, it draws grey buttons.
+    ctx.fillStyle = "grey";
+		ctx.fillRect(0, 0, canvas.width, canvas.height); //Draws the grey background
+  
+  	//Draws 4 grey buttons
+   	drawButton(canvas.width / 5, canvas.height/2, '#382c31');
+  	drawButton(canvas.width / 5 * 2, canvas.height/2, '#382c31');
+  	drawButton(canvas.width / 5 * 3, canvas.height/2, '#382c31');
+  	drawButton(canvas.width / 5 * 4, canvas.height/2, '#382c31');
+    
+}
+
+function createList(){ //Creates a chain of colors as the correct answer
+	answer = [];
+  correct = [];
+  isClickable = false; //Disables the player's ability to click the buttons
+  //Resets the following variables for the combination animation to work
+  indexCombin = 0;
+  realTimer = 0;
+  levelTimer = 0;
+	for (let i = 0; i < level; i++){
+    	 correct.push(colors[Math.round(Math.random() * 3)]); //Adds a colour to the combination
+  }
+  
+ 	startTimer(); //Begins the combination animation
+    
+  updateScore(); //Updates the score's text
+  	
+}
+
+function check(){ //Checks the color combination
+	for (let i = 0; i < answer.length; i++){
+    if (answer[i] != correct[i]){ //Incorrect answer
+        		
+        //Hides the color buttons
+    		drawDefault(); //Resets the coloured buttons
+       	answer = []; //Resets the player's answer
+        isClickable = false; //Disable clicking
+        updateScoreText("Try again"); //Changes the score text to "Try again"
+        currentMenu = "main"; //Sets the current menu to main menu
+        storeSplash = selectSplash(); //Selects a splash screen
+  			splashTimer(); //Begins animating the splash
+        isLayer2 = true;
+  			mainMenuDelay(); //Calls for a main menu
+        return;
+     	}
+  }
+  if (answer.length == correct.length) { //When the player has answered correctly
+   		level++; //Increments the level
+    	createList(); //Creates a new chain of colors
+      drawDefault(); //Resets the colored buttons
+      updateScore(); //Updates the score text
+      return;
+  }
+  updateScore(); //Updates the score text
+  showCheats(); //Shows cheats if enabled
+    
+}
+
+function redr(){//Red button
+	answer.push("Red"); //Adds the color into answer
+  check(); //Checks the answer
+    
+}
+function yellowy(){//Yellow button
+	answer.push("Yellow"); //Adds the color into answer
+  check();
+}
+function blueb(){//Blue button
+	answer.push("Blue"); //Adds the color into answer
+  check(); //Checks the answer
+}
+function greeng(){//Green button
+	answer.push("Green"); //Adds the color into answer
+  check(); //Checks the answer
+}
+
+function updateScore(){
+  updateScoreText("Score: " + answer.length + "/" + correct.length + " - Level " + level); //Change the score text to display the current score
+}
+  
+function updateScoreText(scoreText){//Updates the score text displayed at the upper left corner
+	ctx.fillStyle = "grey";
+  ctx.fillRect(0, 0, canvas.width, 35);
+  ctx.font = "bold 25px Arial";
+  ctx.fillStyle = "black";
+  ctx.fillText(scoreText, 5, 30);
+}
+  
+let realTimer = 0; //Realtime timer used to keep track of the animation
+let levelTimer = 0; //Timer used for the game
+let indexCombin = 0; // current index the animation is on
+
+let combinRequestCancelled; //Stores the combination's animation frame request ID during the game. 
+  
+function startTimer(){ //Begins the animation
+  realTimer++; //Starts the realtime timer
+  let timeStd = calcDelay(level); //Calculates the delay between frames
+  if (realTimer % timeStd == 0){//If realTimer is a multiple of timeStd
+    
+    levelTimer++; //Increments the levelTimer
+    if (indexCombin > correct.length - 1){ //If indexCombin exceeds correct's length
+      drawDefault(); //Resets the coloured buttons
+      isClickable = true; //Enables clicking
+      updateScore(); //Updates the score text
+      return; //Stops the function
+    }
+    else{ //Else
+      animateCombination(indexCombin); //Animates the buttons
+      indexCombin++; //Increments indexCombin
+      
+    }
+  }
+  combinRequestCancelled = requestAnimationFrame(startTimer); //Keeps playing the animation
+  
+}
+
+function calcDelay(x){ //Calculates the delay needed for the player's level
+  let a = -((x-2)-Math.sin(x))+150;
+  let b = -((a-2)-Math.sin(a))+(2*a);
+  let c = -((b-2)-Math.sin(b))+(2*b);
+	return Math.round(c);
+}  
+  
+function animateCombination(index){//Animates the combination
+  updateScore(); //Updates the score text
+  
+  //This code draws grey buttons
+  drawButton(canvas.width / 5, canvas.height/2, '#382c31');
+  drawButton(canvas.width / 5 * 2, canvas.height/2, '#382c31');
+  drawButton(canvas.width / 5 * 3, canvas.height/2, '#382c31');
+  drawButton(canvas.width / 5 * 4, canvas.height/2, '#382c31');
+  
+  //Then draws a button with a different colour depending on correct[index]
+  switch (correct[index]){
+    case "Green":
+      drawButton(canvas.width / 5 * 4, canvas.height/2, "green");
+    	updateButtonText((index+1), "white", canvas.width/5*4, canvas.height/2);
+      break;
+    case "Red":
+      drawButton(canvas.width / 5 * 2, canvas.height/2, "red");
+    	updateButtonText((index+1), "black", canvas.width/5*2, canvas.height/2);
+      break;
+    case "Yellow":
+      drawButton(canvas.width / 5, canvas.height/2, "yellow");
+    	updateButtonText((index+1), "black", canvas.width/5, canvas.height/2);
+      break;
+    case "Blue":
+      drawButton(canvas.width / 5 * 3, canvas.height/2, "blue");
+    	updateButtonText((index+1), "white", canvas.width/5*3, canvas.height/2);
+      break;
+  }
+}
+
+function updateMousePos(canvas, event){ //Checks the mouse's position on the canvas
+	let cText = document.getElementById("console");
+  let rect = canvas.getBoundingClientRect();
+  let x = event.clientX - rect.left;
+  let y = event.clientY - rect.top;
+  return {
+  	mouseX: x,
+    mouseY: y
+  };
+}
+
+function mouseOverCollision(mousePositions){ //Used to change the color of the buttons when hovered
+  //The folowing declarations of variables determine the coordinates of the buttons' centers.
+	let yellow = {
+  	x: canvas.width / 5,
+    y: canvas.height / 2
+  };
+  let red = {
+  	x: canvas.width / 5 * 2,
+    y: canvas.height / 2
+  };
+  let blue = {
+  	x: canvas.width / 5 * 3,
+    y: canvas.height / 2
+  };
+  let green = {
+  	x: canvas.width / 5 * 4,
+    y: canvas.height / 2
+  };
+  
+  if (!isClickable || isLayer2 == true) return; //If it is not clickable or layer 2 is activated
+  
+  let distY = Math.abs(
+    Math.sqrt(
+      (yellow.x - mousePositions.mouseX) ** 2 + (yellow.y - mousePositions.mouseY) ** 2
+    )
+  ); //Mouse's distance from the yellow button
+  
+  let lengthNow = answer.length;
+  ctx.font = "40px Arial";
+  
+  if (distY <= 50){ //If the mouse is inside the button
+  	drawButton(canvas.width / 5, canvas.height/2, "yellow");
+    updateButtonText((lengthNow+1), "black", canvas.width / 5, canvas.height/2); //Highlighted, showing the current length of the answer
+  }else{
+  	drawButton(canvas.width / 5, canvas.height/2, '#382c31');
+  }
+  
+  let distR = Math.abs(
+    Math.sqrt(
+      (red.x - mousePositions.mouseX) ** 2 + (red.y - mousePositions.mouseY) ** 2
+    )
+  ); //Mouse's distance from the red button
+  
+  
+  if (distR <= 50){ //If the mouse is inside the button
+  	drawButton(canvas.width / 5 * 2, canvas.height/2, "red");
+    updateButtonText((lengthNow+1), "black", canvas.width / 5 * 2, canvas.height/2); //Highlighted, showing the current length of the answer
+  }else{
+  	drawButton(canvas.width / 5 * 2, canvas.height/2, '#382c31');
+  }
+  
+  let distB = Math.abs(
+    Math.sqrt(
+      (blue.x - mousePositions.mouseX) ** 2 + (blue.y - mousePositions.mouseY) ** 2
+    )
+  ); //Mouse's distance from the blue button
+  
+  
+  if (distB <= 50){ //If the mouse is inside the button
+  	drawButton(canvas.width / 5 * 3, canvas.height/2, "blue");
+    updateButtonText((lengthNow+1), "white", canvas.width / 5 * 3, canvas.height/2); //Highlighted, showing the current length of the answer
+  }else{
+  	drawButton(canvas.width / 5 * 3, canvas.height/2, '#382c31');
+  }
+  
+  let distG = Math.abs(
+    Math.sqrt(
+      (green.x - mousePositions.mouseX) ** 2 + (green.y - mousePositions.mouseY) ** 2
+    )
+  ); //Mouse's distance from the green button
+  
+  
+  if (distG <= 50){ //If the mouse is inside the button
+  	drawButton(canvas.width / 5 * 4, canvas.height/2, "green");
+    updateButtonText((lengthNow+1), "white", canvas.width / 5 * 4, canvas.height/2); //Highlighted, showing the current length of the answer
+  }else{
+  	drawButton(canvas.width / 5 * 4, canvas.height/2, '#382c31');
+  }
+}
+  
+  
+function updateButtonText(numText, color, buttonX, buttonY){ //Updates the button number during the animation
+  ctx.font = "40px Arial";
+	ctx.fillStyle = color;
+  let difference = 10 + (12.5 * (numText.toString().length - 1));
+  ctx.fillText(numText, buttonX - difference, buttonY + 15);
+}
+  
+function clickCollision(mousePositions){ //Used to update the game when the buttons are clicked
+	let yellow = {
+  	x: canvas.width / 5,
+    y: canvas.height / 2
+  };
+  let red = {
+  	x: canvas.width / 5 * 2,
+    y: canvas.height / 2
+  };
+  let blue = {
+  	x: canvas.width / 5 * 3,
+    y: canvas.height / 2
+  };
+  let green = {
+  	x: canvas.width / 5 * 4,
+    y: canvas.height / 2
+  };
+  
+  if (!isClickable) return;
+  
+  let distY = Math.abs(
+    Math.sqrt(
+      (yellow.x - mousePositions.mouseX) ** 2 + (yellow.y - mousePositions.mouseY) ** 2
+    )
+  ); //Mouse's distance from the yellow button
+  
+  
+  if (distY <= 50){ //If the mouse is inside the button
+  	yellowy();
+	getClick = false;
+  }
+  
+  let distR = Math.abs(
+    Math.sqrt(
+      (red.x - mousePositions.mouseX) ** 2 + (red.y - mousePositions.mouseY) ** 2
+    )
+  ); //Mouse's distance from the red button
+  
+  
+  if (distR <= 50){ //If the mouse is inside the button
+  	redr();
+	getClick = false;
+  }
+  
+  let distB = Math.abs(
+    Math.sqrt(
+      (blue.x - mousePositions.mouseX) ** 2 + (blue.y - mousePositions.mouseY) ** 2
+    )
+  ); //Mouse's distance from the blue button
+  
+  
+  if (distB <= 50){ //If the mouse is inside the button
+  	blueb();
+	getClick = false;
+  }
+  
+  let distG = Math.abs(
+    Math.sqrt(
+      (green.x - mousePositions.mouseX) ** 2 + (green.y - mousePositions.mouseY) ** 2
+    )
+  ); //Mouse's distance from the green button
+  
+  
+  if (distG <= 50){ //If the mouse is inside the button
+  	greeng();
+	getClick = false;
+  }
+}
+  
+function selectSplash(){//Selects a splash sample
+  /* Y = Yellow
+  R = Red
+  B = Blue
+  G = Green
+  N = None
+  A = All
+  */
+  
+	let play_samples = 
+      ["ANNYRBYYRBYBNGNBNGNGGBYGGBYYGYNYGYNA", 
+      "ANNNBBNGGNBRYYRBBRRNBBNGGNBRYYRBRYY", 
+       "ANRRRRGNRYRNGNGNYYNYNNNGNGBA", 
+      "AGBRYRBRBGBRYRBRBGBGNBNGBRY", 
+      "ANBBBBBBBBBBBBBBBBBBBGBBGBGGGGNGGGGBNA", 
+      "AYRBGNNGBRYNNNNYYBBNNYRBGNNYRGBNGBRBGRBG",
+      "ANANANANANANANANANYRBGA",
+      "AAANAAANAABYYYNYYYRAAAAABGNANNNNAAY"]; //List of samples the program can play
+  
+  let pickedSampleNumber = Math.round(Math.random() * (play_samples.length - 1));
+  
+  let pickedSample = play_samples[pickedSampleNumber];
+  //Resets the following variables
+  splashShowIndex = 1;
+  splashTrueIndex = 0;
+  realSplashTimer = 0;
+  return pickedSample;
+}
+
+function mainMenuDelay(){//Waits and enables the main menu
+	if (splashTrueIndex == Math.round(storeSplash.length / 4) + 6){
+    		mainMenu();
+    		return;
+  }
+  requestAnimationFrame(mainMenuDelay);
+}
+  
+let realSplashTimer = 0; //Realtime timer for the splash screen
+let storeSplash; //Stores the selected splash sample
+let splashTrueIndex = 0; //Used for animating the splash screen
+let splashShowIndex = 1; //Used for the text shown on the buttons during the splash screen
+  
+let splashRequestID;//Stores the Animation Request ID of the splash screen
+  
+function splashTimer(){//Controls the splash screen
+  if (currentMenu == "pause") return; //If the program is asking for a pause menu, do not run this function
+  realSplashTimer++; //Increments the realtime timer
+  let timeStd = calcDelay(140); //Determines the delay between frames
+  
+  if (realSplashTimer % timeStd == 0){
+    if (splashTrueIndex > storeSplash.length - 1){//If splashTrueIndex exceeds storeSplash's length
+    	indexSplash = 0; //Resets indexSplash
+      animateSplash(-1); //Stops the animateSplash function
+      inbetweenSplashLoop(); //A function used for delay between two splash samples
+      return;
+    }
+    else{//Else
+    	animateSplash(splashTrueIndex); //Continues animating with the splashTrueIndex
+      splashTrueIndex++; //Increments splashTrueIndex
+    }
+  }
+  splashRequestID = requestAnimationFrame(splashTimer);
+  //The splashRequestID above stores the ID of the requested animation frame
+}
+  
+function animateSplash(index){ //Animates the splash screen
+  drawButton(canvas.width / 5, canvas.height/2, '#382c31');
+  drawButton(canvas.width / 5 * 2, canvas.height/2, '#382c31');
+  drawButton(canvas.width / 5 * 3, canvas.height/2, '#382c31');
+  drawButton(canvas.width / 5 * 4, canvas.height/2, '#382c31');
+  //draws the grey buttons
+  
+	if (index == -1) return; //If index = -1, stop.
+  
+  //Draws a button of a different colour depending on storeSplash[index]
+  switch (storeSplash[index]){
+    case "G":
+      drawButton(canvas.width / 5 * 4, canvas.height/2, "green");
+    	updateButtonText(splashShowIndex, "white", canvas.width/5*4, canvas.height/2); //Number on the button
+      splashShowIndex++; //Increments splashSnowIndex
+      break;
+    case "R":
+      drawButton(canvas.width / 5 * 2, canvas.height/2, "red");
+    	updateButtonText(splashShowIndex, "black", canvas.width/5*2, canvas.height/2); //Number on the button
+      splashShowIndex++; //Increments splashSnowIndex
+      break;
+    case "Y":
+      drawButton(canvas.width / 5, canvas.height/2, "yellow");
+    	updateButtonText(splashShowIndex, "black", canvas.width/5, canvas.height/2); //Number on the button
+      splashShowIndex++; //Increments splashSnowIndex
+      break;
+    case "B":
+      drawButton(canvas.width / 5 * 3, canvas.height/2, "blue");
+    	updateButtonText(splashShowIndex, "white", canvas.width/5*3, canvas.height/2); //Number on the button
+      splashShowIndex++; //Increments splashSnowIndex
+      break;
+    case "A": //Draws all buttons at one time
+      drawButton(canvas.width / 5 * 4, canvas.height/2, "green");
+      drawButton(canvas.width / 5 * 2, canvas.height/2, "red");
+      drawButton(canvas.width / 5, canvas.height/2, "yellow");
+      drawButton(canvas.width / 5 * 3, canvas.height/2, "blue");
+      break;
+  }
+}
+
+let inbetweenDelayStd = 0; //Used as a limit for the delay
+function inbetweenSplashLoop(){ //Called when the splash screen is over to play it again.
+  if (inbetweenDelayStd != 0){
+  	realSplashTimer++; //Increments timer
+  }else{
+  	inbetweenDelayStd = 200;
+    realSplashTimer = 0; //Resets realtime timer
+    storeSplash = selectSplash(); //Select a new sample
+    realSplashTimer++; //Increments timer
+  }
+  if (realSplashTimer > inbetweenDelayStd){
+  	realSplashTimer = 0; //Resets realtime timer
+    inbetweenDelayStd = 0; //Resets time standard
+    splashTimer(); //Restarts the splash screen
+    return; //Stops the function
+  }
+  splashRequestID = requestAnimationFrame(inbetweenSplashLoop); //Repeats the function
+}
+
+  
+//     Menus
+function menuButtonElement(x, y){//Draws menu buttons at x, y
+  if (globalMousePositions.mouseX > x && globalMousePositions.mouseX < x + canvas.width / 3
+     && globalMousePositions.mouseY > y && globalMousePositions.mouseY < y + 50){ //If the mouse is inside the button
+  	ctx.fillStyle = `rgb(240, 177, 0)`;
+  }else{
+  	ctx.fillStyle = `rgb(240, 74, 0)`; //Color does not change.
+  }
+    ctx.strokeStyle = "black";
+  	ctx.lineWidth = 2;
+    ctx.fillRect(x, y, canvas.width / 3, 50);
+    ctx.strokeRect(x, y, canvas.width / 3, 50); //Draws a rectangle button without text
+  
+}
+
+function menuButtons(x, y, number, nameArray){//Draws a certain number of buttons starting at x, y, and labels the buttons
+	for (let i = 0; i < number; i++){
+    	menuButtonElement(x, y + (75 * i));
+        ctx.fillStyle = "black";
+        ctx.font = "30px Arial";
+        ctx.fillText(nameArray[i], x + 10, y + (75 * i) + 35); //Adds labels according to nameArray[i]
+    }
+}
+  
+function mainMenu(){ //Draws the main menu
+  video.pause(); //Pauses the instructions video
+  
+  //This code draws the title.
+  ctx.font = "20px serif";
+  ctx.fillStyle = "white";
+  ctx.fillText("Minh & Aananth's", canvas.width / 3.5, canvas.height / 3 - 80);
+  ctx.font = "40px serif";
+  ctx.fillStyle = "white";
+  ctx.fillText("SIMON SAYS", canvas.width / 3.5, canvas.height / 3 - 50);
+  
+  
+  if (!isLayer2 || currentMenu != "main") return; //If layer 2 is not enabled, or the program does not ask for a main menu, do not run this function
+  
+	ctx.fillStyle = `rgba(0, 0, 0, 0.01)`;
+  ctx.fillRect(0, 0, canvas.width, canvas.height); //Draws a transparent background
+  menuButtons(canvas.width / 3.5, canvas.height / 3, 3, ["Start", "Instructions", "Quit"]); //Draws three buttons for the main menu
+  
+  if (getClick == true && currentMenu == "main"){ //If there is a click
+    //If the click is on the Start button
+    getClick = false;
+  	if (globalMousePositions.mouseX > canvas.width / 3.5 && globalMousePositions.mouseX < ((canvas.width / 3.5) + (canvas.width / 3))
+     && globalMousePositions.mouseY > canvas.height / 3 && globalMousePositions.mouseY < (canvas.height / 3 + 50)){ //Start button
+      currentMenu = "level"; //Sets currentMenu to level menu
+      ctx.clearRect(0, 0, canvas.width, canvas.height); //Clears the menu
+      ctx.fillStyle = "grey";
+			ctx.fillRect(0, 0, canvas.width, canvas.height); //Draws the grey background
+      drawDefault(); //Resets the coloured buttons
+      levelMenu(); //Draws the level menu
+      return; //Stops the function
+    }
+    //If the click is on the Instructions button
+    if (globalMousePositions.mouseX > (canvas.width / 3.5) && globalMousePositions.mouseX < (canvas.width / 3.5 + canvas.width / 3)
+     && globalMousePositions.mouseY > (canvas.height / 3 + 75) && globalMousePositions.mouseY < (canvas.height / 3 + 125)){//Instructions button
+      video.currentTime = 0; //Sets the video back to the beginning
+      instructWindow(); //Opens the instructions pop-up window
+      video.play(); //Plays the video
+      return; //Stops the function
+    }
+    //If the click is on the Quit button
+    if (globalMousePositions.mouseX > (canvas.width / 3.5) && globalMousePositions.mouseX < (canvas.width / 3.5 + canvas.width / 3)
+     && globalMousePositions.mouseY > (canvas.height / 3 + 150) && globalMousePositions.mouseY < (canvas.height / 3 + 200)){//Quit button
+      quitWindow(); //Opens the quit pop-up window
+      return; //Stops the function
+    }
+    
+  }
+  requestAnimationFrame(mainMenu);
+}
+  
+function pauseButton(){ //Draws the pause button
+  if (currentMenu != "pause") return; //If the program is not asking for a pause menu, return.
+  
+  showCheats(); //Shows cheats
+  
+  //Button graphics
+  if (globalMousePositions.mouseX > canvas.width - 80 && globalMousePositions.mouseX < canvas.width - 10
+     && globalMousePositions.mouseY > 10 && globalMousePositions.mouseY < 80){ //If the mouse is inside the button
+  	ctx.fillStyle = `rgb(240, 177, 0)`;
+  }else{
+  	ctx.fillStyle = `rgb(240, 74, 0)`; //Color does not change.
+  }
+  
+  //This code draws a pause button
+  ctx.strokeStyle = "black";
+  ctx.lineWidth = 2;
+  ctx.fillRect(canvas.width - 80, 10, 70, 70);
+  ctx.strokeRect(canvas.width - 80, 10, 70, 70);
+  ctx.fillStyle = "black";
+  ctx.font = "bold 50px Arial";
+  ctx.fillText("||", canvas.width - 58, 58);
+  
+  if (getClick){ //If the canvas detects a click
+    getClick = false; //getClick set to false
+    if (globalMousePositions.mouseX > canvas.width - 80 && globalMousePositions.mouseX < canvas.width - 10
+     && globalMousePositions.mouseY > 10 && globalMousePositions.mouseY < 80){
+      //If the mouse is on the pause button
+      isClickable = false; //Disable clicking on the buttons
+      cancelAnimationFrame(combinRequestCancelled); //Cancels the combination animation
+      isLayer2 = true; //Enables layer 2
+      pauseMenu(); //Opens the pause menu
+      return; //Stops this function
+    }
+  }
+  requestAnimationFrame(pauseButton); //Repeats this function
+}
+  
+function pauseMenu(){ //Draws the pause menu
+	if (isLayer2 == false || currentMenu != "pause") return; //If layer 2 is not activated, and the program is not asking for a pause menu, return.
+  let cheatsButtonName = "Enable Cheats"; //Stores the cheats button's label
+  switch (cheatsStatus){
+    case false: //If cheatsStatus = fase, or cheats are disabled
+      cheatsButtonName = "Enable Cheats"; //Labels the button "Enable"
+      break;
+    case true: //Else
+      cheatsButtonName = "Disable Cheats"; //Labels the button "Disable"
+      break;
+  }
+  drawDefault();
+  updateScore();
+	ctx.fillStyle = `rgba(0, 0, 0, 0.5)`;
+  ctx.fillRect(0, 0, canvas.width, canvas.height); //Draws a transparent background
+  menuButtons(canvas.width / 3.5, canvas.height / 3.9, 3, ["Resume", cheatsButtonName, "Main Menu"]);
+  if (getClick == true && currentMenu == "pause"){ //If there is a click
+    getClick = false;
+  	if (globalMousePositions.mouseX > canvas.width / 3.5 && globalMousePositions.mouseX < ((canvas.width / 3.5) + (canvas.width / 3))
+     && globalMousePositions.mouseY > canvas.height / 3.9 && globalMousePositions.mouseY < (canvas.height / 3.9 + 50)){ //Resume button
+      drawDefault(); //Resets coloured buttons
+      updateScore(); //Updates score text
+      
+      isLayer2 = false; //Deactivates layer 2
+      if (indexCombin > correct.length - 1){ //If the sequence has already ended
+      	isClickable = true; //Enables clicking
+    	}
+      startTimer(); //Else, continue the combination animation.
+      pauseButton(); //Continues drawing the pause button
+      return;
+    }
+    //If the click is on the Cheats button
+    if (globalMousePositions.mouseX > (canvas.width / 3.5) && globalMousePositions.mouseX < (canvas.width / 3.5 + canvas.width / 3)
+     && globalMousePositions.mouseY > (canvas.height / 3.9 + 75) && globalMousePositions.mouseY < (canvas.height / 3.9 + 125)){//Quit button
+      activateCheats(); //Activates or deactivates cheats
+    }
+    
+    if (globalMousePositions.mouseX > (canvas.width / 3.5) && globalMousePositions.mouseX < (canvas.width / 3.5 + canvas.width / 3)
+     && globalMousePositions.mouseY > (canvas.height / 3.9 + 150) && globalMousePositions.mouseY < (canvas.height / 3.9 + 200)){//Main menu button
+      drawDefault(); //Resets coloured buttons
+      isClickable = false; //Disables clicking
+  		cancelAnimationFrame(combinRequestCancelled); //Stops the combination animation
+  		combinRequestCancelled = null;
+      currentMenu = "main"; //Sets currentMenu to main menu
+      storeSplash = selectSplash(); //Selects a new splash sample
+      isLayer2 = true; //Enables layer 2
+  		splashTimer(); //Begins the splash screen
+      mainMenuDelay(); //Calls for the main menu to be shown
+      return;
+    }
+    
+  }
+  requestAnimationFrame(pauseMenu); //Repeats this function
+}
+  
+function levelMenu(){
+	if (!isLayer2 || currentMenu != "level") return; //If layer 2 is not enabled and currentMenu is not level menu, return
+  
+  ctx.fillStyle = `rgba(0, 0, 0, 0.01)`;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);//Draws a transparent background
+  requestAnimationFrame(levelMenu);
+  
+  let column1 = ["Easy as Pie", "Proper Start", "Medium", "Tolerable", "Masterful"];
+  let column2 = ["Effortless", "Impossible", "God Mode", "Ultimate", "Crash the Game"]; //Arrays of names for drawing columns
+  let id_col1 = ["superEasy", "Easy", "Medium", "Hard", "superHard"];
+  let id_col2 = ["ultraHard", "impossible", "godMode", "ultimate",  "Level 150"]; //Arrays of IDs for selecting difficulty
+  
+  menuButtons(canvas.width/6, canvas.height/12, 5, column1);
+  menuButtons(canvas.width/6 + canvas.width/3 + 20, canvas.height/12, 5, column2);
+  menuButtons(canvas.width/2.8, canvas.height/6.5*5.5, 1, ["Main Menu"]);
+  
+  if (getClick && currentMenu == "level"){//If there is a click and currentMenu is level menu,
+    getClick = false;
+  	if (globalMousePositions.mouseX > canvas.width/2.8 && globalMousePositions.mouseX < canvas.width/2.8 + canvas.width/3 && globalMousePositions.mouseY > canvas.height/6.5*5.5 && globalMousePositions.mouseY < (canvas.height/6.5*5.5) + 50) // Main Menu button
+    {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "grey";
+			ctx.fillRect(0, 0, canvas.width, canvas.height);
+      drawDefault();
+      currentMenu = "main";
+    	mainMenu(); //Returns to the main menu
+      return;
+    }
+    
+  
+  
+  
+  for (let i = 0; i < 5; i++){//For each column
+    //Column 1
+  	if (globalMousePositions.mouseX > canvas.width/6 && globalMousePositions.mouseX < canvas.width/6 + canvas.width/3 && globalMousePositions.mouseY > canvas.height/12 + (75 * i) && globalMousePositions.mouseY < (canvas.height/12 + (75 * i)) + 50){
+      //Difficulty equals id_col1[i]
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "grey";
+      isLayer2 = false;
+			ctx.fillRect(0, 0, canvas.width, canvas.height);
+      drawDefault();
+      currentMenu = "pause";
+      initialize(id_col1[i]); //Initializes the game with selected difficulty
+      return;
+    }
+    //Column 2
+    if (globalMousePositions.mouseX > canvas.width/6 + canvas.width/3 + 20 && globalMousePositions.mouseX < canvas.width/6 + canvas.width/3 + 20 + canvas.width/3 && globalMousePositions.mouseY > canvas.height/12 + (75 * i) && globalMousePositions.mouseY < (canvas.height/12 + (75 * i)) + 50){
+      //Difficulty equals id_col2[i]
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "grey";
+      isLayer2 = false;
+			ctx.fillRect(0, 0, canvas.width, canvas.height);
+      drawDefault();
+      currentMenu = "pause";
+      initialize(id_col2[i]); //Initializes the game with selected difficulty
+      return;
+    }
+  }
+ }
+}
+  
+  
+function popUpWindow(textArr){ //Opens a pop-up window with text
+	ctx.fillStyle = "grey";
+  ctx.strokeStyle = "black";
+  ctx.fillRect(0, 0, canvas.width, canvas.height); //Draws a grey opaque background
+  
+  ctx.fillStyle = "black";
+  ctx.font = "20px Arial";
+  for (let i = 0; i < textArr.length; i++) ctx.fillText(textArr[i], 50, 40 + (20 * i));
+}//Draws the text
+  
+function instructWindow(){//Instructions window
+  popUpWindow(["When you start, there should be four buttons on the screen: red, blue, green,", "and yellow. These four buttons should start flashing in a random order.", "Once they’ve stopped flashing, press the buttons in the order they flashed.", "If you answer correctly, the buttons will start flashing again, but this time", "one extra button will flash. You then need to press the buttons again in", "this new order.", "", "This will keep repeating until you press a button out of order, which will result", "in a game over.", "", "If you need to stop for a bit, press the pause button in the top right corner.", "", "Try to go as far as you can, and have fun!"]); //Draws the pop-up window
+  video.play(); //Plays the instructions video
+  ctx.drawImage(instructionsVIDFrame, 60, 310, 794/1.5, 246/1.5); //Draws the video frame
+  menuButtons(canvas.width/2.8, canvas.height/6.5*5.5, 1, ["Main Menu"]);
+  if (getClick & currentMenu == "main"){
+    getClick = false;
+  	if (globalMousePositions.mouseX > canvas.width/2.8 && globalMousePositions.mouseX < canvas.width/2.8 + canvas.width/3 && globalMousePositions.mouseY > canvas.height/6.5*5.5 && globalMousePositions.mouseY < (canvas.height/6.5*5.5) + 50) // Main Menu button
+    {
+      ctx.clearRect(0, 0, canvas.width, canvas.height); //Clears the canvas
+      ctx.fillStyle = "grey";
+			ctx.fillRect(0, 0, canvas.width, canvas.height); //Draws a grey background
+      video.currentTime = 0; //Sets the video back to the beginning
+      video.pause(); //Pauses the instructions video
+      drawDefault();
+      currentMenu = "main";
+    	mainMenu();  //Opens the main menu
+      return;
+    }
+  }
+  requestAnimationFrame(instructWindow); //Repeats the function
+}
+  
+function quitWindow(){
+	popUpWindow(["Credits:", "Minh Phan: Gameplay, Graphics", "Aananth: Instructions, Debugging, Graphics", "", "", "", "", "Are you sure you want to quit the game?"]);
+  
+  menuButtons(canvas.width/2.8, canvas.height/6.5*5.5 - 75, 2, ["Main Menu", "Quit"]);
+  if (getClick & currentMenu == "main"){ //If there is a click and currentMenu is main menu
+    getClick = false;
+    if (globalMousePositions.mouseX > canvas.width/2.8 && globalMousePositions.mouseX < canvas.width/2.8 + canvas.width/3 && globalMousePositions.mouseY > canvas.height/6.5*5.5 - 75 && globalMousePositions.mouseY < (canvas.height/6.5*5.5) + 50 - 75) // Main Menu button
+    {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "grey";
+			ctx.fillRect(0, 0, canvas.width, canvas.height); //Draws a grey background
+      drawDefault();
+      currentMenu = "main";
+    	mainMenu(); //Opens the main menu
+      return;
+    }
+  	if (globalMousePositions.mouseX > canvas.width/2.8 && globalMousePositions.mouseX < canvas.width/2.8 + canvas.width/3 && globalMousePositions.mouseY > canvas.height/6.5*5.5 && globalMousePositions.mouseY < (canvas.height/6.5*5.5) + 50) // Quit button
+    {
+      canvas.remove(); //Removes the canvas
+      document.getElementById("console").innerHTML = "The user has quit the game."; //Displays a text on the website
+      return;
+    }
+  }
+  requestAnimationFrame(quitWindow); //Repeats this function
+}
+
+</script>
+</body>
+</html>
